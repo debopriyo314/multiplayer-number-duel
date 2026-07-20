@@ -1,0 +1,39 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Room documents hold only PUBLIC game state — never the secret number.
+    // Any signed-in (anonymous) user may read a room to join it or spectate
+    // its public state. Only the two seated players may write to it.
+    match /rooms/{roomCode} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+        && request.resource.data.player1Id == request.auth.uid
+        && request.resource.data.player2Id == null;
+
+      allow update: if request.auth != null
+        && (resource.data.player1Id == request.auth.uid
+            || resource.data.player2Id == request.auth.uid
+            // allow the second player to attach to an open room
+            || (resource.data.player2Id == null
+                && request.resource.data.player2Id == request.auth.uid));
+
+      allow delete: if false;
+
+      // The secret number for a round. Only the setter who created it may
+      // ever read it back — this is what actually prevents the opponent's
+      // client from cheating by reading the number directly out of Firestore.
+      match /secrets/{roundId} {
+        allow create: if request.auth != null
+          && request.resource.data.setterId == request.auth.uid;
+
+        allow read: if request.auth != null
+          && resource.data.setterId == request.auth.uid;
+
+        allow update, delete: if false;
+      }
+    }
+  }
+}

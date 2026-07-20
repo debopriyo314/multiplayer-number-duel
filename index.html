@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Duel — Two-Player Number Guessing</title>
+<meta name="description" content="A live two-player number guessing duel." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="grain"></div>
+<canvas id="confetti-canvas"></canvas>
+
+<div class="app" id="app">
+
+  <!-- ======================= HOME ======================= -->
+  <section class="screen" id="screen-home" data-screen>
+    <header class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <span class="tumbler">7</span><span class="tumbler">•</span><span class="tumbler">4</span>
+      </div>
+      <h1>DUEL<span class="brand-sub">/ number guessing</span></h1>
+      <p class="tagline">Two players. Two secrets. Fewest guesses wins.</p>
+    </header>
+
+    <div class="panel home-actions">
+      <button class="btn btn-primary" id="btn-create-room">
+        <span class="btn-label">Create Room</span>
+        <span class="btn-hint">Start a duel and get a code</span>
+      </button>
+      <div class="divider"><span>or</span></div>
+      <button class="btn btn-secondary" id="btn-show-join">
+        <span class="btn-label">Join Room</span>
+        <span class="btn-hint">Enter a code you were given</span>
+      </button>
+
+      <form class="join-form hidden" id="join-form" autocomplete="off">
+        <label for="join-code-input" class="field-label">Room code</label>
+        <div class="code-input-row">
+          <input type="text" id="join-code-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="off" />
+          <button type="submit" class="btn btn-primary btn-compact" id="btn-join-submit">Join</button>
+        </div>
+        <p class="field-error hidden" id="join-error"></p>
+      </form>
+    </div>
+
+    <p class="foot-note">Reconnects automatically if your page refreshes mid-duel.</p>
+  </section>
+
+  <!-- ======================= CREATE / WAITING ======================= -->
+  <section class="screen" id="screen-waiting" data-screen>
+    <div class="panel center-panel">
+      <p class="eyebrow">Room code</p>
+      <div class="code-display" id="room-code-display" aria-live="polite">
+        <span class="digit">0</span><span class="digit">0</span><span class="digit">0</span><span class="digit">0</span><span class="digit">0</span><span class="digit">0</span>
+      </div>
+      <button class="btn btn-ghost btn-compact" id="btn-copy-code">Copy code</button>
+
+      <div class="waiting-indicator">
+        <span class="pulse-dot"></span>
+        <span id="waiting-text">Waiting for opponent to join…</span>
+      </div>
+
+      <button class="btn btn-text" id="btn-cancel-room">Cancel &amp; return home</button>
+    </div>
+  </section>
+
+  <!-- ======================= GAME ======================= -->
+  <section class="screen" id="screen-game" data-screen>
+    <div class="game-shell">
+
+      <div class="round-strip">
+        <div class="round-pill" id="round-pill-1" data-round="1">
+          <span class="round-pill-label">Round 1</span>
+          <span class="round-pill-state" id="round1-state">—</span>
+        </div>
+        <div class="round-pill" id="round-pill-2" data-round="2">
+          <span class="round-pill-label">Round 2</span>
+          <span class="round-pill-state" id="round2-state">—</span>
+        </div>
+      </div>
+
+      <div class="connection-note hidden" id="connection-note">Opponent connection looks quiet — they may have stepped away.</div>
+
+      <!-- Setter view: choose secret -->
+      <div class="panel role-panel hidden" id="panel-set-secret">
+        <p class="eyebrow" id="set-secret-eyebrow">You're setting the number</p>
+        <h2>Pick a secret, 1–100</h2>
+        <p class="sub-copy">Your opponent can't see this. They'll only learn higher or lower.</p>
+        <form id="set-secret-form">
+          <input type="password" inputmode="numeric" pattern="[0-9]*" id="secret-input" class="secret-input" placeholder="••" maxlength="3" autocomplete="off" />
+          <p class="field-error hidden" id="secret-error"></p>
+          <button type="submit" class="btn btn-primary">Lock it in</button>
+        </form>
+      </div>
+
+      <!-- Setter view: waiting for guesses -->
+      <div class="panel role-panel hidden" id="panel-setter-waiting">
+        <p class="eyebrow">Number locked</p>
+        <h2>Your opponent is guessing…</h2>
+        <div class="live-stat-row">
+          <div class="live-stat"><span class="live-stat-num" id="setter-wait-count">0</span><span class="live-stat-label">guesses so far</span></div>
+        </div>
+        <div class="guess-log" id="setter-guess-log" aria-live="polite"></div>
+      </div>
+
+      <!-- Guesser view -->
+      <div class="panel role-panel hidden" id="panel-guess">
+        <p class="eyebrow" id="guess-eyebrow">Your turn to guess</p>
+        <h2>Find their number</h2>
+
+        <div class="feedback-flash" id="feedback-flash" aria-live="assertive"></div>
+
+        <div class="range-meter">
+          <div class="range-labels">
+            <span id="range-low-label">1</span>
+            <span id="range-high-label">100</span>
+          </div>
+          <div class="range-track">
+            <div class="range-fill" id="range-fill"></div>
+            <div class="range-marker" id="range-marker"></div>
+          </div>
+        </div>
+
+        <form id="guess-form">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" id="guess-input" class="guess-input" placeholder="?" maxlength="3" autocomplete="off" />
+          <p class="field-error hidden" id="guess-error"></p>
+          <button type="submit" class="btn btn-primary" id="guess-submit">Guess</button>
+        </form>
+
+        <div class="live-stat-row">
+          <div class="live-stat"><span class="live-stat-num" id="guess-count">0</span><span class="live-stat-label">guesses</span></div>
+          <div class="live-stat"><span class="live-stat-num" id="guess-range-size">100</span><span class="live-stat-label">numbers left</span></div>
+        </div>
+
+        <div class="guess-log" id="guess-log" aria-live="polite"></div>
+      </div>
+
+      <!-- Round complete transition -->
+      <div class="panel role-panel hidden" id="panel-round-done">
+        <p class="eyebrow">Round complete</p>
+        <h2 id="round-done-heading">Nice work.</h2>
+        <p class="sub-copy" id="round-done-copy"></p>
+        <button class="btn btn-primary" id="btn-continue-round">Continue</button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ======================= RESULTS ======================= -->
+  <section class="screen" id="screen-results" data-screen>
+    <div class="panel results-panel">
+      <p class="eyebrow" id="results-eyebrow">Duel complete</p>
+      <h2 class="results-headline" id="results-headline">—</h2>
+
+      <div class="results-compare">
+        <div class="results-side" id="results-side-1">
+          <span class="results-side-label" id="results-name-1">You</span>
+          <span class="results-side-num" id="results-count-1">0</span>
+          <span class="results-side-sub">guesses</span>
+        </div>
+        <div class="results-vs">vs</div>
+        <div class="results-side" id="results-side-2">
+          <span class="results-side-label" id="results-name-2">Opponent</span>
+          <span class="results-side-num" id="results-count-2">0</span>
+          <span class="results-side-sub">guesses</span>
+        </div>
+      </div>
+
+      <div class="results-actions">
+        <button class="btn btn-primary" id="btn-play-again">Play Again</button>
+        <button class="btn btn-ghost" id="btn-leave-room">Leave room</button>
+      </div>
+      <p class="rematch-note hidden" id="rematch-note">Waiting for opponent to confirm a rematch…</p>
+    </div>
+  </section>
+
+  <!-- ======================= ERROR TOAST ======================= -->
+  <div class="toast hidden" id="toast" role="status" aria-live="polite"></div>
+
+</div>
+
+<script type="module" src="firebase-config.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
